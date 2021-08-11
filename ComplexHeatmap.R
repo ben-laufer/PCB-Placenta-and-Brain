@@ -1,55 +1,5 @@
-# Update GO plots and heatmaps from DMRichR for figures
+# ComplexHeatmaps
 # Ben Laufer
-
-GOplot <- function(slimmedGO = slimmedGO){
-  
-  slimmedGO %>% 
-    dplyr::group_by(`Gene Ontology`) %>%
-    dplyr::slice(1:7) %>%
-    dplyr::ungroup() %>% 
-    dplyr::mutate(Term = stringr::str_trim(.$Term)) %>%
-    dplyr::mutate(Term = Hmisc::capitalize(.$Term)) %>%
-    dplyr::mutate(Term = stringr::str_trunc(.$Term, 40, side = "right")) %>% 
-    dplyr::mutate(Term = factor(.$Term, levels = unique(.$Term[order(forcats::fct_rev(.$`Gene Ontology`), .$`-log10.p-value`)]))) %>% 
-    ggplot2::ggplot(aes(x = Term,
-                        y = `-log10.p-value`,
-                        fill = `Gene Ontology`,
-                        group = `Gene Ontology`)) +
-    ggplot2::geom_bar(stat = "identity",
-                      position = position_dodge(),
-                      color = "Black") +
-    ggplot2::coord_flip() +
-    ggplot2::scale_y_continuous(expand = c(0, 0)) +
-    ggsci::scale_fill_d3() +
-    ggplot2::labs(y = expression("-log"[10](p))) +
-    ggplot2::theme_classic() +
-    ggplot2::theme(text = element_text(size = 40),
-                   axis.title.y = element_blank(),
-                   axis.title.x = element_text(size = 25)) %>% 
-    return()
-}
-
-library(org.Mm.eg.db)
-annoDb <- "org.Mm.eg.db"
-library(tidyverse)
-setwd("/Users/benlaufer/Box/PEBBLES/DNA/DMRs")
-dir.create("GOplots")
-
-purrr::walk(c("brain_female", "brain_male", "placenta_female", "placenta_male"),
-            function(x){
-              
-              (readxl::read_xlsx(glue::glue("{x}/Ontologies/GOfuncR_slimmed_results.xlsx")) %>% 
-                 GOplot() + 
-                 theme(legend.position = "none")) %>%
-                ggplot2::ggsave(glue::glue("GOplots/{x}_GOfuncR_plot.pdf"),
-                                plot = .,
-                                device = NULL,
-                                height = 12,
-                                width = 12)
-              
-            })
-
-# Heatmaps ----------------------------------------------------------------
 
 #' smoothPheatmap2
 #' @description Plot a heatmap of normalized individual smoothed methylation value z scores for selected regions (i.e. significant DMRs)

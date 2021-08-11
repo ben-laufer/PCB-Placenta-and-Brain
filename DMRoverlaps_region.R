@@ -11,7 +11,7 @@ if (!requireNamespace("Vennerable", quietly = TRUE))
 
 packages <- c("DMRichR", "ChIPpeakAnno", "Vennerable", "TxDb.Mmusculus.UCSC.mm10.knownGene", "ggplot2",
               "org.Mm.eg.db", "kableExtra", "regioneR", "BSgenome.Mmusculus.UCSC.mm10.masked", "UpSetR",
-              "metap", "pheatmap", "magrittr", "Hmisc", "tidyverse")
+              "ComplexUpset", "metap", "pheatmap", "magrittr", "Hmisc", "tidyverse")
 stopifnot(suppressMessages(sapply(packages, require, character.only = TRUE)))
 enrichR:::.onAttach() 
 
@@ -191,14 +191,6 @@ purrr::walk(c("male", "female", "both"), function(sex){
 
 # Gene symbol -------------------------------------------------------------
 
-#' getSymbol
-#' @description Get gene symbols as character vector from excel column 
-#' @param file An excel spreadsheet from \code{DMRichR} (DMRs_annotated.xlsx)
-#' @return Vector of gene symbols
-#' @importFrom dplyr select filter
-#' @importFrom purrr pluck
-#' @importFrom magrittr %>% 
-#' @export getSymbol
 getSymbol <- function(regions = sigRegions,
                       TxDb = TxDb,
                       annoDb = annoDb){
@@ -206,6 +198,7 @@ getSymbol <- function(regions = sigRegions,
     DMRichR::annotateRegions(TxDb = TxDb,
                              annoDb = annoDb) %>%
     #dplyr::filter(annotation != "Distal Intergenic") %>% 
+    dplyr::distinct() %>% 
     purrr::pluck("geneSymbol") %>%
     na.omit()
 }
@@ -229,16 +222,88 @@ dir.create("overlaps/symbol")
 
 print(glue::glue("Creating UpSet plot of all gene symbol overlaps"))
 
-pdf("overlaps/symbol/UpSet_Genes_All_Symbol.pdf", height = 8.5, width = 11, onefile = FALSE)
+geneUpsetPlot <- function(list = list){
+  list %>%
+    UpSetR::fromList() %>%
+    ComplexUpset::upset(.,
+                        names(.),
+                        n_intersections = 40, # Default from UpSetR
+                        width_ratio = 0.2,
+                        height_ratio = 0.4,
+                        base_annotations = list(
+                          'Intersection size'= intersection_size(
+                            counts = TRUE
+                          ) +
+                            theme(
+                              panel.grid.major = element_blank(),
+                              panel.grid.minor = element_blank(),
+                              axis.line = element_line(colour = 'black'),
+                              axis.text = element_text(size = 20),
+                              axis.title = element_text(size = 20)
+                            ) +
+                            scale_y_continuous(expand = c(0, 0, 0.1, 0))
+                        ),
+                        sort_sets = FALSE,
+                        queries = list(
+                          upset_query(
+                            intersect = c("Placenta Female", "Placenta Male",
+                                          "Brain Female", "Brain Male"),
+                            color = '#E41A1C',
+                            fill = '#E41A1C',
+                            only_components = c('intersections_matrix', 'Intersection size')
+                          ),
+                          upset_query(
+                            intersect = c("Placenta Female", "Placenta Male"),
+                            color = '#FF7F00',
+                            fill = '#FF7F00',
+                            only_components = c('intersections_matrix', 'Intersection size')
+                          ),
+                          upset_query(
+                            intersect = c("Brain Female", "Brain Male"),
+                            color = '#4DAF4A',
+                            fill = '#4DAF4A',
+                            only_components = c('intersections_matrix', 'Intersection size')
+                          ),
+                          upset_query(set = 'Placenta Female', fill = '#FF7F00'),
+                          upset_query(set = 'Placenta Male', fill = '#FF7F00'),
+                          upset_query(set = 'Brain Female', fill = '#4DAF4A'),
+                          upset_query(set = 'Brain Male', fill = '#4DAF4A')
+                        ),
+                        matrix = intersection_matrix(
+                          geom = geom_point(
+                            shape = 'circle filled',
+                            size = 3.5,
+                            stroke = 0.45
+                          )
+                        ),
+                        set_sizes = (
+                          upset_set_size(geom = geom_bar(color = 'black')
+                          )
+                        ),
+                        themes = upset_modify_themes( # names(upset_themes) 
+                          list(
+                            'intersections_matrix' = theme(
+                              axis.text = element_text(size = 20),
+                              axis.title = element_blank()
+                            ),
+                            'overall_sizes' = theme(
+                              axis.title = element_text(size = 14)
+                            )
+                          )
+                        )
+    )
+}
 
-genes %>%
-  purrr::set_names(c("Placenta Male", "Placenta Female", "Brain Male", "Brain Female")) %>% 
-  UpSetR::fromList() %>% 
-  UpSetR::upset(sets = rev(names(.)),
-                keep.order = T,
-                nsets = length(.),
-                empty.intersections = "on",
-                text.scale = c(2, 2, 2, 2, 2.5, 2))
+pdf(glue::glue("overlaps/symbol/UpSet_Genes_All_Symbol.pdf"),
+    height = 6, width = 10, onefile = FALSE)
+
+print({
+  genes %>%
+    magrittr::set_names(c("Placenta Male", "Placenta Female",
+                          "Brain Male", "Brain Female")) %>% 
+    rev() %>% 
+    geneUpsetPlot()
+})
 
 dev.off()
 
